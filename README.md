@@ -8,7 +8,7 @@ A simple, interactive web application to build a digital family tree, connect re
 
 You can view the live deployment of the **Digital Growing Family Tree** project here:
 
-🔗 **[Visit Live Site](digital-family-pi.vercel.app)**
+🔗 **[Visit Live Site][digital-family-pi.vercel.app](https://vercel.app)**
 
 ---
 
