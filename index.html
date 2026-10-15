@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Digital Growing Family Tree</title>
+<style>
+:root{--bg:#eef3ee;--card:#fff;--ink:#17332a;--mut:#5f736a;--line:#d5e0d7;--pri:#1f4d3d;--on:#fff;--acc:#d9a93f;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#101c17;--card:#192a23;--ink:#eaf1ec;--mut:#9ab0a4;--line:#2d443a;--pri:#8fd1b6;--on:#0d1a14;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#101c17;--card:#192a23;--ink:#eaf1ec;--mut:#9ab0a4;--line:#2d443a;--pri:#8fd1b6;--on:#0d1a14;color-scheme:dark}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+h1,h2,.serif{font-family:Georgia,"Iowan Old Style",serif;font-weight:600;line-height:1.15}
+main{max-width:720px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:2.2rem;margin:.6em 0 .3em}h2{font-size:1.5rem;margin:.4em 0}
+p{color:var(--mut);margin:.4em 0 1em}
+button{font:inherit;cursor:pointer;border-radius:10px;border:1px solid var(--pri);padding:12px 16px;background:transparent;color:var(--pri)}
+button.p{background:var(--pri);color:var(--on);width:100%;font-weight:600}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+input,select,textarea{font:inherit;width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);margin:4px 0 12px}
+label{font-size:.85rem;color:var(--mut)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.sym{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 4px;font-size:.9rem}
+.sym i{width:26px;height:26px;border-radius:50%;display:block}
+.sym[aria-pressed=true]{border:2px solid var(--pri);background:var(--card)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0}
+.bar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.bar button{padding:8px 12px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.chips button{padding:7px 12px;border-radius:99px}
+.chips button[aria-pressed=true]{background:var(--pri);color:var(--on)}
+.tree{overflow:auto;border:1px solid var(--line);border-radius:14px;background:var(--card);max-height:62vh}
+.tree text{font:600 13px system-ui;fill:var(--ink);pointer-events:none}
+.tree .n{cursor:pointer}.tree .n:focus-visible circle{stroke:var(--acc);stroke-width:4}
+.sm{font-size:.82rem;color:var(--mut)}
+</style></head><body><main id="app"></main>
+<script>
+const K='dgft-v1';
+let S={step:0,fam:{symbol:'',color:'#2d6a4f'},people:[],rel:[],root:null,sel:null,add:null,zoom:1};
+try{const r=localStorage.getItem(K);if(r)S=JSON.parse(r)}catch(e){}
+const save=()=>{try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}};
+const SYMS=[['Mango','#f0a830'],['Rose','#d94a5c'],['Jasmine','#cfd8c8'],['Lotus','#e07ba8'],['Sunflower','#f2c40f'],['Apple','#c9302c'],['Neem','#6aa84f'],['Lavender','#8e6bbf']];
+const TYPES=[['spouse','Spouse'],['son','Son'],['daughter','Daughter'],['father','Father'],['mother','Mother'],['brother','Brother'],['sister','Sister'],['uncle','Uncle'],['aunt','Aunt']];
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $=id=>S.people.find(p=>p.id===id);
+const uid=()=>Math.random().toString(36).slice(2,9);
+const parents=i=>S.rel.filter(r=>r.t==='p'&&r.b===i).map(r=>r.a);
+const kids=i=>S.rel.filter(r=>r.t==='p'&&r.a===i).map(r=>r.b);
+const spouses=i=>S.rel.filter(r=>r.t==='s'&&(r.a===i||r.b===i)).map(r=>r.a===i?r.b:r.a);
+const yr=i=>+($(i).year)||9999;
+function mk(o){const p={id:uid(),name:'',year:'',town:'',note:'',unk:false,...o};S.people.push(p);return p.id}
+const link=(a,b,t)=>S.rel.push({a,b,t});
+function ensureParents(i){let ps=parents(i);if(!ps.length){const u=mk({name:'Unknown parent of '+$(i).name,unk:true});link(u,i,'p');ps=[u]}return ps}
+function addRelative(sel,type,side,o){
+  const n=mk(o);
+  if(type==='spouse')link(sel,n,'s');
+  else if(type==='son'||type==='daughter'){link(sel,n,'p');const sp=spouses(sel);if(sp.length===1)link(sp[0],n,'p')}
+  else if(type==='father'||type==='mother'){link(n,sel,'p');const o2=parents(sel).filter(x=>x!==n);if(o2.length===1&&!spouses(o2[0]).length)link(o2[0],n,'s')}
+  else if(type==='brother'||type==='sister')ensureParents(sel).forEach(p=>link(p,n,'p'));
+  else{const ps=ensureParents(sel);const par=ps.includes(side)?side:ps[0];ensureParents(par).forEach(g=>link(g,n,'p'))}
+}
+function layout(){
+  const gen={[S.root]:0},q=[S.root];
+  while(q.length){const c=q.shift();
+    for(const k of kids(c))if(!(k in gen)){gen[k]=gen[c]+1;q.push(k)}
+    for(const p of parents(c))if(!(p in gen)){gen[p]=gen[c]-1;q.push(p)}
+    for(const s of spouses(c))if(!(s in gen)){gen[s]=gen[c];q.push(s)}}
+  const min=Math.min(...Object.values(gen)),x={},done=new Set();let cur=0;
+  function place(id){
+    const unit=[id,...spouses(id).filter(s=>!done.has(s)&&s!==id)];unit.forEach(u=>done.add(u));
+    const ch=[...new Set(unit.flatMap(kids))].filter(k=>!done.has(k)).sort((a,b)=>yr(a)-yr(b));
+    const start=cur,cx=ch.map(place);let left=cur;
+    if(cx.length)left=Math.max((Math.min(...cx)+Math.max(...cx))/2-(unit.length-1)/2,start);
+    unit.forEach((u,i)=>x[u]=left+i);cur=Math.max(cur,left+unit.length);return left+(unit.length-1)/2}
+  Object.keys(gen).filter(i=>!parents(i).length).sort((a,b)=>gen[a]-gen[b]||yr(a)-yr(b)).forEach(i=>{if(!done.has(i))place(i)});
+  Object.keys(gen).forEach(i=>{if(!done.has(i))place(i)});
+  return{gen,x,min,w:cur}}
+const ini=n=>(n||'?').split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+function treeSvg(){
+  const L=layout(),W=110,H=130,pos=i=>[L.x[i]*W+60,(L.gen[i]-L.min)*H+50];
+  const rows=Math.max(...Object.values(L.gen))-L.min+1,w=Math.max(L.w*W+20,300),h=rows*H;let s='';
+  S.rel.filter(r=>r.t==='s'&&r.a in L.x&&r.b in L.x).forEach(r=>{const[a,b]=[pos(r.a),pos(r.b)];s+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#d9a93f" stroke-width="3" stroke-dasharray="6 5"/>`});
+  Object.keys(L.x).forEach(c=>{const ps=parents(c).filter(p=>p in L.x);if(!ps.length)return;
+    const pp=ps.map(pos),mx=pp.reduce((a,p)=>a+p[0],0)/pp.length,my=pp[0][1]+(ps.length>1?0:26),[cx,cy]=pos(c);
+    s+=`<path d="M${mx} ${my} C${mx} ${(my+cy)/2},${cx} ${(my+cy)/2},${cx} ${cy-26}" fill="none" stroke="${S.fam.color}" stroke-width="2.5" opacity=".7"/>`});
+  Object.keys(L.x).forEach(i=>{const p=$(i),[a,b]=pos(i),sel=i===S.sel;
+    s+=`<g class="n" tabindex="0" role="button" aria-label="${esc(p.name)}" onclick="pick('${i}')" onkeydown="if(event.key==='Enter')pick('${i}')">
+    <circle cx="${a}" cy="${b}" r="26" fill="${p.unk?'#9aa8a0':S.fam.color}" stroke="${sel?'#d9a93f':'var(--card)'}" stroke-width="${sel?5:3}"/>
+    <text x="${a}" y="${b+5}" text-anchor="middle" style="fill:#102018">${esc(ini(p.name))}</text>
+    <text x="${a}" y="${b+46}" text-anchor="middle">${esc(p.name.length>14?p.name.slice(0,13)+'…':p.name)}</text></g>`});
+  return`<svg width="${w*S.zoom}" height="${h*S.zoom}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Family tree">${s}</svg>`}
+function intro(p){
+  const ps=parents(p.id).map($).filter(x=>!x.unk),ks=kids(p.id).map(k=>$(k).name),sp=spouses(p.id).map(k=>$(k).name);
+  let t=`${p.name}${p.year?' was born around '+p.year:' is part of this family'}${p.town?' in '+p.town:''}.`;
+  if(sp.length)t+=` Married to ${sp.join(' and ')}.`;
+  if(ks.length)t+=` Parent of ${ks.join(', ')}.`;
+  if(ps.length)t+=` Child of ${ps.map(x=>x.name).join(' and ')}.`;
+  return t+(p.note?' '+p.note:'')}
+function upd(id,f,v){const p=$(id);p[f]=v;if(f==='name'&&v.trim())p.unk=false;save()}
+function pick(i){S.sel=i;S.add=null;save();R()}
+function go(n){S.step=n;save();R()}
+function sym(n,c){S.fam.symbol=n;S.fam.color=c;save();R()}
+function setType(t){S.add={type:t,side:null};R()}
+function plant(){
+  const g=id=>document.getElementById(id).value.trim();
+  if(!g('rn')){document.getElementById('err').textContent='Enter a name or place to plant the root.';return}
+  S.people=[];S.rel=[];S.root=mk({name:g('rn'),year:g('ry'),town:g('rt'),note:g('rm')});S.sel=S.root;S.step=3;save();R()}
+function submitAdd(){
+  const g=id=>document.getElementById(id).value.trim(),n=g('an');
+  if(!n){document.getElementById('err').textContent='Add a name first.';return}
+  const side=document.getElementById('side')?.value;
+  addRelative(S.sel,S.add.type,side,{name:n,year:g('ay'),town:g('at')});
+  S.add=null;save();R()}
+function zoom(d){S.zoom=Math.min(2,Math.max(.4,S.zoom+d));save();R()}
+function reset(){if(confirm('Delete this family from this device?')){try{localStorage.removeItem(K)}catch(e){}location.reload()}}
+function exp(){const b=new Blob([JSON.stringify({family:S.fam,people:S.people,relations:S.rel},null,1)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='family.json';a.click()}
+function R(){
+  const A=document.getElementById('app');document.documentElement.style.setProperty('--acc',S.fam.symbol?S.fam.color:'#d9a93f');
+  if(S.step===0)A.innerHTML=`<h1>Every family has a story worth keeping.</h1><p>Build a living family tree with the people, the places and the memories, one relative at a time. Your tree stays on this device.</p><button class="p" onclick="go(1)">Start your Digital Family</button><p class="sm">Prototype of Sprints 1 and 2. Photos, voice notes, invites and AI intros come in Sprint 3.</p>`;
+  else if(S.step===1)A.innerHTML=`<p class="sm">Step 1 of 3</p><h2>Choose something from nature your family loves</h2><div class="grid">${SYMS.map(([n,c])=>`<button class="sym" aria-pressed="${S.fam.symbol===n}" onclick="sym('${n}','${c}')"><i style="background:${c}"></i>${n}</button>`).join('')}</div>${S.fam.symbol?`<div class="card serif" style="font-size:1.4rem;text-align:center;border-color:${S.fam.color}">The ${S.fam.symbol} Family</div>`:''}<button class="p" ${S.fam.symbol?'':'disabled style="opacity:.5"'} onclick="go(2)">Continue</button>`;
+  else if(S.step===2)A.innerHTML=`<p class="sm">Step 2 of 3</p><h2>Who is the oldest person known in your family?</h2><p>No one that far back? Enter the place where your story begins.</p><label for="rn">Full name or place</label><input id="rn" autocomplete="off"><label for="ry">Born (year, approximate is fine)</label><input id="ry" inputmode="numeric"><label for="rt">Home town</label><input id="rt"><label for="rm">One thing you remember</label><input id="rm"><p id="err" role="alert" class="sm"></p><button class="p" onclick="plant()">Plant the root</button>`;
+  else{const p=$(S.sel);
+    A.innerHTML=`<div class="bar"><h2>The ${esc(S.fam.symbol)} Family</h2><span><button onclick="exp()">Export</button> <button onclick="reset()">Reset</button></span></div>
+    <p class="sm">${S.people.length} people · ${Object.keys(layout().x).length?new Set(Object.values(layout().gen)).size:0} generations. Tap a person to open their story.</p>
+    <div class="bar" style="margin-bottom:8px"><span class="sm">Zoom</span><span><button onclick="zoom(-.2)" aria-label="Zoom out">−</button> <button onclick="zoom(.2)" aria-label="Zoom in">+</button></span></div>
+    <div class="tree">${treeSvg()}</div>
+    <div class="card"><label for="pn">Name</label><input id="pn" value="${esc(p.name)}" onchange="upd('${p.id}','name',this.value);R()">
+    <div style="display:flex;gap:8px"><div style="flex:1"><label for="py">Year</label><input id="py" value="${esc(p.year)}" onchange="upd('${p.id}','year',this.value);R()"></div><div style="flex:2"><label for="pt">Home town</label><input id="pt" value="${esc(p.town)}" onchange="upd('${p.id}','town',this.value);R()"></div></div>
+    <label for="pm">One thing you remember</label><input id="pm" value="${esc(p.note)}" onchange="upd('${p.id}','note',this.value);R()">
+    <p class="sm" style="margin:0">✦ Written from your facts only. Edit the fields above to change it.</p><p style="color:var(--ink)">${esc(intro(p))}</p></div>
+    <div class="card"><h2>Who came next in the story?</h2><p class="sm">Adding someone connected to ${esc(p.name)}</p>
+    <div class="chips">${TYPES.map(([t,l])=>`<button aria-pressed="${S.add?.type===t}" onclick="setType('${t}')">${l}</button>`).join('')}</div>
+    ${S.add?`${/uncle|aunt/.test(S.add.type)?`<label for="side">Which parent's side?</label><select id="side">${(parents(p.id).length?parents(p.id):[null]).map(i=>i?`<option value="${i}">${esc($(i).name)}'s side</option>`:'<option value="">An unknown parent (we will add one)</option>').join('')}</select>`:''}
+    <label for="an">Name</label><input id="an" autocomplete="off"><div style="display:flex;gap:8px"><div style="flex:1"><label for="ay">Year</label><input id="ay" inputmode="numeric"></div><div style="flex:2"><label for="at">Home town</label><input id="at"></div></div><p id="err" role="alert" class="sm"></p><button class="p" onclick="submitAdd()">Add to the tree</button>`:''}</div>`}
+}
+R();
+</script></body></html>
